@@ -1,0 +1,32 @@
+# See https://pre-commit.com for more information
+# See https://pre-commit.com/hooks.html for more hooks
+repos:
+- repo: https://github.com/pre-commit/pre-commit-hooks
+  rev: v4.0.1
+  hooks:
+  - id: trailing-whitespace
+    args: [--markdown-linebreak-ext=md]
+  - id: mixed-line-ending
+  - id: end-of-file-fixer
+  - id: requirements-txt-fixer
+  - id: check-added-large-files
+  - id: detect-private-key
+  - id: destroyed-symlinks
+  - id: check-merge-conflict
+  - id: check-executables-have-shebangs
+- repo: https://github.com/jumanjihouse/pre-commit-hooks
+  rev: 2.1.5
+  hooks:
+  - id: shfmt
+    exclude: ".*\\.bats"
+  - id: script-must-have-extension
+    exclude: ".*\\.bats"
+  - id: script-must-not-have-extension
+- repo: git://github.com/detailyang/pre-commit-shell
+  rev: v1.0.6
+  hooks:
+  - id: shell-lint
+-   repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.7.2.1
+    hooks:
+    -   id: shellcheck
