@@ -12,6 +12,7 @@ All files are under [Apache 2 License](LICENSE), unless otherwise noted (See fil
 ## Scripts
 
 - [checksum](src/scripts/checksum.md) - Convenient checksum checker
+- [ssh-agent-vault](src/scripts/ssh-agent-vault.md) - Encrypt passwords using ssh-keys
 
 ## Libraries
 

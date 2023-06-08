@@ -1,0 +1,249 @@
+#!/usr/bin/env bash
+
+# Copyright 2023 Janne K. Olesen <janne.olesen@oberbaum-concept.com>
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# 	http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+################################################################################
+# Variables - do not edit
+set -eo pipefail
+declare -a SSH_KEYS
+declare -r NAMESPACE_PATTERN="^[a-zA-Z0-9][a-zA-Z0-9@._-]*$"
+: "${SSH_AGENT_VAULT_DIRECTORY:=$HOME/.ssh-agent-vault}"
+
+###############################################################################
+# Functions
+
+#-------------------------------------------------------------------------------
+brief() {
+	local ec=$1
+	cat >/dev/stderr <<-EOM
+
+		$(basename "$0") <action> [<namespace>]
+
+		Using ssh-keys from ssh-agent to encrypt/decrypt passwords.
+
+		Arguments:
+		  action       encrypt|decrypt|delete, required.
+		                - encrypt: encrypt a new password using ssh key from ssh-agent.
+		                  Encryption is interactive.
+		                - decrypt: decrypt password using ssh key from ssh-agent.
+		                  Decryption will output the password on STDOUT, errors to
+		                  STDERR.
+		                - delete: delete the local file. This is also interactive.
+		  namespace    string, required unless env variable SSH_AGENT_VAULT_NAMESPACE
+		               is set. Must match $NAMESPACE_PATTERN.
+
+	EOM
+	if [[ -n $ec ]]; then
+		echo -e "Use '--help' to get more information\n"
+		exit "$ec"
+	fi
+}
+
+#-------------------------------------------------------------------------------
+help() {
+	local ec=$1
+	brief
+	cat >/dev/stderr <<-EOM
+		Environment variables:
+		  SSH_AGENT_VAULT_DIRECTORY    Path to directory where to store the encrypted
+		                               passwords.
+		                               Defaults to '$HOME/.ssh-agent-vault/'.
+		  SSH_AGENT_VAULT_NAMESPACE    Could be used instead of passing argument
+		                               <namespace>.
+
+		How does it work?
+
+		When using action 'encrypt', the tool we list the currently provided ssh-keys
+		from ssh-agent. After selected one of them to use, it will ask for the password
+		to encrypt. Then the following happens:
+		1. Use ssh-agent to sign the provided namespace with the selected ssh-key.
+		2. Use the signed message as key to encrypt the password with openssl, using
+		   aes256.
+		3. Use sha256 to hash "<namespace> <ssh-key>"
+		4. Use the hash as filename to store the file in VAULT_PASS_DECRYPT_DIRECTORY
+
+		When using action 'decrypt', the tool will for each ssh-key provided by
+		ssh-agent:
+		1. Use sha256 to hash "<namespace> <ssh-key>"
+		2. Check, if a file named like the hash exists in VAULT_PASS_DECRYPT_DIRECTORY
+		3. If no such file exists, continue with the next ssh-key. If such a file
+		   exists, then
+		     - Use ssh-agent to sign the provided namespace with the selected ssh-key.
+		     - Use the signed message as key to decrypt the password with openssl
+		     - print the password to STDOT
+
+		When using action 'delete', the tool we list the currently provided ssh-keys
+		from ssh-agent. After selected one of them to use, it will:
+		1. Use sha256 to hash "<namespace> <ssh-key>"
+		2. Check, if a file named like the hash exists in VAULT_PASS_DECRYPT_DIRECTORY
+		3. Delete the file.
+
+		Requirements:
+		- command ssh-add
+		- command openssl
+		- command sha256sum
+		- running ssh-agent
+
+		version: 1.0.0
+
+	EOM
+	exit "$ec"
+}
+
+#-------------------------------------------------------------------------------
+error() {
+	local msg="$*"
+	echo -e "\nERROR: $msg" >>/dev/stderr
+}
+
+#-------------------------------------------------------------------------------
+get_ssh_keys() {
+	SSH_KEYS=()
+	while read -r line; do
+		SSH_KEYS+=("$line")
+	done < <(ssh-add -L | grep ssh-rsa)
+}
+
+#-------------------------------------------------------------------------------
+select_ssh_key() {
+	get_ssh_keys
+	if [[ ${#SSH_KEYS[@]} -eq 0 ]]; then
+		error "No ssh keys found, is ssh-agent running?"
+		exit 1
+	fi
+	echo -e "\nFound following rsa ssh keys:"
+	for i in "${!SSH_KEYS[@]}"; do
+		echo "  [$i]   ${SSH_KEYS[i]}"
+	done
+	while true; do
+		echo -e -n "\nChoose with ssh key shoud be used for namespace \"$namespace\": "
+		read -r index
+		if [[ $index =~ ^[[:digit:]]+$ && $index -ge 0 && $index -lt ${#SSH_KEYS[@]} ]]; then
+			SSH_KEY="${SSH_KEYS[index]}"
+			break
+		fi
+		echo -n "Please choose a valid number or CTRL+C to exit: "
+	done
+}
+
+#-------------------------------------------------------------------------------
+ask_vault_passwd() {
+	local namespace="$1"
+	VAULT_PASSWD=""
+	echo -n "Please enter the vault password for namespace \"$namespace\": "
+	read -r VAULT_PASSWD
+	echo "Using vault password: $VAULT_PASSWD"
+	while true; do
+		echo -n "Is this correct [Y/n]: "
+		read -r ok
+		[[ $ok =~ ^[Yy]?$ ]] && return
+		[[ $ok =~ ^[Nn]$ ]] && ask_vault_passwd
+	done
+}
+
+#-------------------------------------------------------------------------------
+create_filepath() {
+	local namespace="$1"
+	local filename
+
+	filename=$(echo "$namespace $SSH_KEY" | sha256sum | cut -d' ' -f1)
+	FILEPATH="$SSH_AGENT_VAULT_DIRECTORY/$filename"
+}
+
+#-------------------------------------------------------------------------------
+encrypt() {
+	local namespace="$1"
+	local enc_key
+
+	if [[ -e "$SSH_AGENT_VAULT_DIRECTORY" && ! -d "$SSH_AGENT_VAULT_DIRECTORY" ]]; then
+		error "$SSH_AGENT_VAULT_DIRECTORY is not a directory"
+	elif [[ ! -e "$SSH_AGENT_VAULT_DIRECTORY" ]]; then
+		mkdir -p "$SSH_AGENT_VAULT_DIRECTORY"
+	fi
+
+	select_ssh_key "$namespace"
+	ask_vault_passwd "$namespace"
+	create_filepath "$namespace"
+	enc_key=$(echo "$namespace" | ssh-keygen -Y sign -f <(ssh-add -L | grep "$SSH_KEY") -n "$namespace" - 2>/dev/null)
+	echo "$VAULT_PASSWD" | openssl enc -base64 -e -aes256 -salt -pass pass:"$enc_key" -out "$FILEPATH" -pbkdf2
+	echo "file: $FILEPATH created"
+}
+
+#-------------------------------------------------------------------------------
+decrypt() {
+	local namespace="$1"
+	local enc_key passwd
+
+	if [[ ! -d "$SSH_AGENT_VAULT_DIRECTORY" ]]; then
+		error "Directory \"$SSH_AGENT_VAULT_DIRECTORY\" not found"
+		exit 1
+	fi
+	get_ssh_keys
+	for i in "${!SSH_KEYS[@]}"; do
+		SSH_KEY="${SSH_KEYS[i]}"
+		create_filepath "$namespace"
+		if [[ -f "$FILEPATH" ]]; then
+			enc_key=$(echo "$namespace" | ssh-keygen -Y sign -f <(ssh-add -L | grep "$SSH_KEY") -n "$namespace" - 2>/dev/null)
+			passwd=$(openssl enc -base64 -d -aes256 -salt -pass pass:"$enc_key" -in "$FILEPATH" -pbkdf2)
+			echo "$passwd"
+			exit
+		fi
+	done
+	error "unable to decrypt a password for $namespace"
+	exit 1
+}
+
+#-------------------------------------------------------------------------------
+delete() {
+	local namespace="$1"
+
+	select_ssh_key "$namespace"
+	create_filepath "$namespace"
+
+	if [[ -f "$FILEPATH" ]]; then
+		rm "$FILEPATH"
+		echo "$FILEPATH deleted"
+	else
+		echo "no encrypted password for given namespace and ssh-key found"
+	fi
+}
+
+###############################################################################
+# main
+[[ $# -eq 0 || $# -gt 2 ]] && brief 1
+action=$1
+[[ $action == "-h" ]] && brief 0
+[[ $action == "--help" ]] && help 0
+
+if [[ $action != "encrypt" && $action != "decrypt" && $action != "delete" ]]; then
+	error "invalid action \"$action\""
+	brief 1
+fi
+if [[ -n "$2" ]]; then
+	namespace="$2"
+else
+	namespace="$SSH_AGENT_VAULT_NAMESPACE"
+fi
+if [[ -z "$namespace" ]]; then
+	error "missing namespace"
+	brief 1
+fi
+
+if [[ ! "$namespace" =~ $NAMESPACE_PATTERN ]]; then
+	error "invalid namespace, must match $NAMESPACE_PATTERN"
+	exit 1
+fi
+
+$action "$namespace"
