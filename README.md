@@ -11,6 +11,8 @@ All files are under [Apache 2 License](LICENSE), unless otherwise noted (See fil
 
 ## Scripts
 
+- [checksum](src/scripts/checksum.md) - Convenient checksum checker
+
 ## Libraries
 
 - [logging_lib.sh](src/libs/logging_lib.md) - A simple logging library for bash

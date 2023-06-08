@@ -1,0 +1,107 @@
+#!/usr/bin/env bash
+
+# Copyright 2023 Janne K. Olesen <janne.olesen@oberbaum-concept.com>
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# 	http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+################################################################################
+set -o pipefail
+
+################################################################################
+# Functions
+
+#-------------------------------------------------------------------------------
+function help() {
+	local rc=${1:-0}
+	cat <<-EOM
+
+		Tool to compute and compare file checksum, supports md5, sha1 and sha256
+
+		usage: ${0} [-h|--help] <file> <checksum> [checksum-part ...]
+
+		Parameters:
+		  -h          displays this help
+		  <file>      path to file
+		  <checksum>  md5, sha1 or sha256 checksum. Multiple parts are
+		              concatinated (no need to quote), whitespaces are removed.
+
+		Exit codes:
+		  3           internal error
+		  others      exit codes from checksum tool
+
+		Requirements:
+		  - md5sum
+		  - sha1sum
+		  - sha256sum
+
+		version: 1.0.0
+
+	EOM
+	exit "$rc"
+}
+
+#-------------------------------------------------------------------------------
+function check() {
+	local filepath=$1
+	local checksum=$2
+	local algo=$3
+	local filedir filename
+	filedir=$(dirname "$filepath")
+	filename=$(basename "$filepath")
+	if ! pushd "$filedir" >/dev/null; then
+		echo "failed to change directory to $filedir"
+		exit 3
+	fi
+	echo "$checksum  $filename" | "${algo}sum" -c
+	r=$?
+	popd >/dev/null || exit 3
+	return $r
+}
+
+###############################################################################
+# main
+[[ $# -eq 0 || $# -gt 2 ]] && help 3
+
+FILE="$1"
+shift
+if [[ -z "$FILE" ]]; then
+	echo "ERROR: parameter <file> is missing"
+	help 3
+fi
+[[ "$FILE" == "-h" || "$FILE" == "--help" ]] && help 0
+
+for p in "$@"; do
+	CHECKSUM="${CHECKSUM}$p"
+done
+CHECKSUM="${CHECKSUM// /}"
+
+if [[ -z "$CHECKSUM" ]]; then
+	echo "ERROR: parameter <checksum> is missing"
+	help 3
+fi
+if [[ ! -f "$FILE" ]]; then
+	echo "ERROR: file $FILE not found"
+	help 3
+fi
+
+case "${#CHECKSUM}" in
+	32) ALGO=md5 ;;
+	40) ALGO=sha1 ;;
+	64) ALGO=sha256 ;;
+	*)
+		echo "ERROR: unable to determine checksum algorithm (checksum length: ${#CHECKSUM})"
+		exit 3
+		;;
+esac
+
+check "$FILE" "$CHECKSUM" "$ALGO"
