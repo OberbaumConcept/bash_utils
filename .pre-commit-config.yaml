@@ -35,7 +35,7 @@ repos:
   - id: script-must-not-have-extension
   - id: shfmt
     exclude: ".*\\.bats"
-    args: [-ci]  
+    args: [-ci]
 - repo: https://github.com/jackdewinter/pymarkdown
   rev: v0.9.11
   hooks:

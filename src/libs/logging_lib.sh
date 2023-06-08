@@ -14,12 +14,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# VERSION=1.0.0
+
 ################################################################################
 # Variables - may be overwritten
 ################################################################################
 # We will try to detect if colors are supported. If so, log levels will be
 # colored (fatal=bold red, error=red, warn=yellow). Set LOGGING_COLOR_SUPPORT_DISABLED=1
 # to disable color support. Color support requires 'tput'
+
 : "${LOGGING_LEVEL:=LOGGING_LEVEL_WARN}"
 : "${LOGGING_COLORS_DISABLED:=0}"
 LOGGING_DATE_FORMAT='%Y-%m-%d %H:%M:%S'
@@ -89,16 +92,16 @@ _logging_log() {
 # Effect: Sets LOGGING_LOGLEVEL#
 logging_setLevel() {
 	case ${1^^} in
-	TRACE) LOGGING_LEVEL=$LOGGING_LEVEL_TRACE ;;
-	DEBUG) LOGGING_LEVEL=$LOGGING_LEVEL_DEBUG ;;
-	INFO) LOGGING_LEVEL=$LOGGING_LEVEL_INFO ;;
-	WARN) LOGGING_LEVEL=$LOGGING_LEVEL_WARN ;;
-	ERROR) LOGGING_LEVEL=$LOGGING_LEVEL_ERROR ;;
-	FATAL) LOGGING_LEVEL=$LOGGING_LEVEL_FATAL ;;
-	*)
-		logging_error "unable to parse log level '$1'"
-		return 1
-		;;
+		TRACE) LOGGING_LEVEL=$LOGGING_LEVEL_TRACE ;;
+		DEBUG) LOGGING_LEVEL=$LOGGING_LEVEL_DEBUG ;;
+		INFO) LOGGING_LEVEL=$LOGGING_LEVEL_INFO ;;
+		WARN) LOGGING_LEVEL=$LOGGING_LEVEL_WARN ;;
+		ERROR) LOGGING_LEVEL=$LOGGING_LEVEL_ERROR ;;
+		FATAL) LOGGING_LEVEL=$LOGGING_LEVEL_FATAL ;;
+		*)
+			logging_error "unable to parse log level '$1'"
+			return 1
+			;;
 	esac
 }
 

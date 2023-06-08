@@ -1,19 +1,19 @@
 
-load test_helper/bats-assert/load.bash
-load test_helper/bats-support/load.bash
+load test_helper/bats-assert/load
+load test_helper/bats-support/load
 
 __levels=(trace debug info warn error fatal)
 
 
 @test "sourcing" {
-	source src/logging_lib.sh
+	source src/libs/logging_lib.sh
 }
 
 
 @test "logging_setLevel" {
 
 	# prepare
-	source src/logging_lib.sh
+	source src/libs/logging_lib.sh
 
 	# test
 	for ((i=0; i<${#__levels[@]}; i++)); do
@@ -34,7 +34,7 @@ __levels=(trace debug info warn error fatal)
 @test "logging_setLevel invalid value" {
 
 	# prepare
-	source src/logging_lib.sh
+	source src/libs/logging_lib.sh
 
 	# test
 	LOGGING_LEVEL=100
@@ -45,8 +45,11 @@ __levels=(trace debug info warn error fatal)
 
 
 @test "logging_trace" {
-	source src/logging_lib.sh
 
+	# prepare
+	source src/libs/logging_lib.sh
+
+	# test
 	for ((i=0; i<${#__levels[@]}; i++)); do
 		loglevel=${__levels[$i]}
 		logging_setLevel "$loglevel"
@@ -61,8 +64,11 @@ __levels=(trace debug info warn error fatal)
 
 
 @test "logging_debug" {
-	source src/logging_lib.sh
 
+	# prepare
+	source src/libs/logging_lib.sh
+
+	# test
 	for ((i=0; i<${#__levels[@]}; i++)); do
 		loglevel=${__levels[$i]}
 		logging_setLevel "$loglevel"
@@ -77,8 +83,11 @@ __levels=(trace debug info warn error fatal)
 
 
 @test "logging_info" {
-	source src/logging_lib.sh
 
+	# prepare
+	source src/libs/logging_lib.sh
+
+	# test
 	for ((i=0; i<${#__levels[@]}; i++)); do
 		loglevel=${__levels[$i]}
 		logging_setLevel "$loglevel"
@@ -93,8 +102,11 @@ __levels=(trace debug info warn error fatal)
 
 
 @test "logging_warn" {
-	source src/logging_lib.sh
 
+	# prepare
+	source src/libs/logging_lib.sh
+
+	# test
 	for ((i=0; i<${#__levels[@]}; i++)); do
 		loglevel=${__levels[$i]}
 		logging_setLevel "$loglevel"
@@ -109,8 +121,11 @@ __levels=(trace debug info warn error fatal)
 
 
 @test "logging_error" {
-	source src/logging_lib.sh
 
+	# prepare
+	source src/libs/logging_lib.sh
+
+	# test
 	for ((i=0; i<${#__levels[@]}; i++)); do
 		loglevel=${__levels[$i]}
 		logging_setLevel "$loglevel"
@@ -125,8 +140,11 @@ __levels=(trace debug info warn error fatal)
 
 
 @test "logging_fatal" {
-	source src/logging_lib.sh
 
+	# prepare
+	source src/libs/logging_lib.sh
+
+	# test
 	for ((i=0; i<${#__levels[@]}; i++)); do
 		loglevel=${__levels[$i]}
 		logging_setLevel "$loglevel"
@@ -141,9 +159,13 @@ __levels=(trace debug info warn error fatal)
 
 
 @test "LOGGING_COLORS_DISABLED=1" {
-	LOGGING_COLORS_DISABLED=1
-	source src/logging_lib.sh
 
+	# prepare
+	# shellcheck disable=SC2034
+	LOGGING_COLORS_DISABLED=1
+	source src/libs/logging_lib.sh
+
+	# test
 	for color in "${_LOGGING_COLORS[@]}"; do
 		assert_equal "$color" ""
 	done
