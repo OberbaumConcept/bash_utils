@@ -2,7 +2,14 @@
 
 Collection of bash snippets, scripts und libraries.
 
-License: Apache License 2.0
+> **_NOTE:_**  All scripts etc are intended for my personal usage. Feel free to use them, but don't complain if they break something.
+
+## License
+
+All files are under [Apache 2 License](LICENSE), unless otherwise noted (See file headers).
+
+## Scripts
 
 ## Libraries
-* src/logging_lib.sh - Logging library
+
+- [src/logging_lib.sh](src/logging_lib.md) - A simple logging library for bash
